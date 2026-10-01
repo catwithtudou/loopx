@@ -196,7 +196,7 @@ Goal 顶部直接提供 **概览、任务、对话、成果**，分别用于判�
 隐藏并计数。「全部」包含早期已完成工作。互不相连的工作链分框排列，需要决定的链在前；
 没有关联的事项单独列出。选中事项会高亮全部前序与后续，检查器列出「之前 / 之后」并可打开任务详情。
 连线只来自已记录关系，不代表可以执行；遗漏、来源裁剪或依赖成环时显示「部分工作未出现在此地图中」，
-仅指向已归档或其他 Goal 的关联只在底部注明。手机改为列表。
+关联端点未找到时同样保留不完整提示，不能推断它已归档或属于其他 Goal。手机改为列表。
 
 **范围与刷新：**交付链覆盖当前选中工作及有限前序；完整 Goal 关系请看工作地图。
 缺失前序、来源裁剪与未展开决定可展开查看；任务完成或缺口列表为空都不代表通过验收。
@@ -244,8 +244,9 @@ chains sit in separate frames, chains awaiting a decision first, and unlinked
 items sit in their own strip. Selecting an item highlights its full lineage and
 lists what comes before and after it, with **Open details** for tasks. A line is
 a recorded relation, not permission to run. Omitted items, a truncated source
-or a dependency loop show "Some work is not on this map"; links that only point
-to archived or other-Goal work get a quiet footnote. Phones get a list instead of a canvas. Export retains the
+or a dependency loop show "Some work is not on this map". Missing linked items
+also keep that notice: absence alone does not prove archival or another Goal.
+Phones get a list instead of a canvas. Export retains the
 entire validated delivery snapshot regardless of filtering, excluding raw logs
 and conversation/file bodies. Outputs remain in Files. Missing observations
 never certify acceptance. Remote sources show their synchronized observations

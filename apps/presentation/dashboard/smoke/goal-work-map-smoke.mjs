@@ -67,8 +67,8 @@ assert.equal(goalWorkMapLayout({ ...parsed, nodes: history(3).groups[0].columns.
 
 const limits = parsed.limits;
 assert.equal(goalWorkMapCoverage(parsed), "complete");
-assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, missing_endpoint_count: 2, topology_complete: false } }), "outside_links",
-  "Links into archived or other-Goal work do not make this Goal's own map partial");
+assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, missing_endpoint_count: 2, topology_complete: false } }), "partial",
+  "Missing endpoints do not prove the target was archived or belongs to another Goal");
 for (const change of [{ omitted_node_count: 1 }, { source_truncated: true }, { cycle_edge_count: 1 }]) {
   assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, missing_endpoint_count: 2, topology_complete: false, ...change } }), "partial");
 }

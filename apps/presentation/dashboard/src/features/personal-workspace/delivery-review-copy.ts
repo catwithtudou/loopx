@@ -59,7 +59,6 @@ const en = {
     tasksDone: "tasks done", blocked: "blocked", waiting: "waiting", decisions: "need your decision", watches: "watching",
     hidden: "finished or deferred, hidden", unlinked: "Not linked to other work", empty: "This Goal has no tasks yet.",
     owner: "Owner", showMore: "Show {count} more", showFewer: "Show fewer", doneBefore: "+{count} done before", noLinks: "No task links are recorded between these items yet.",
-    outsideLinks: "{count} links point to archived or other-Goal work and are not drawn.",
     unavailable: "This source does not provide a work map.",
     kind: { deliverable: "Task", gate: "Decision", monitor: "Watch" },
     tone: { decision: "Needs you", blocked: "Blocked", open: "Open", waiting: "Waiting", done: "Done", unknown: "Unknown" },
@@ -67,7 +66,7 @@ const en = {
     relation: { depends_on: "Required", continues: "Follow-up", supersedes: "Replaces" },
     legend: "Line styles", open: "Open details", noSource: "Details for this item are not loaded in the workspace.",
     select: "Select an item to trace what it needs and what it leads to.", selected: "Selected item",
-    incomplete: "Some work is not on this map.", omitted: "Not shown", missingEnds: "Linked outside this Goal or archived", truncated: "Source truncated", cycles: "Circular links",
+    incomplete: "Some work is not on this map.", omitted: "Not shown", missingEnds: "Missing linked items", truncated: "Source truncated", cycles: "Circular links",
   },
 } satisfies ReviewExportLabels & Record<string, unknown>;
 
@@ -102,7 +101,6 @@ const zh: typeof en = {
     tasksDone: "项任务已完成", blocked: "受阻", waiting: "等待", decisions: "需你决策", watches: "持续监控",
     hidden: "项已完成或延后的工作已隐藏", unlinked: "未与其他工作关联", empty: "此 Goal 还没有任务。",
     owner: "负责人", showMore: "显示其余 {count} 项", showFewer: "收起", doneBefore: "另有 {count} 项已完成前序", noLinks: "这些事项之间还没有记录的任务关联。",
-    outsideLinks: "{count} 条关联指向已归档或其他 Goal 的工作，未画出。",
     unavailable: "此来源不提供工作地图。",
     kind: { deliverable: "任务", gate: "决策", monitor: "监控" },
     tone: { decision: "需要你", blocked: "受阻", open: "待处理", waiting: "等待", done: "已完成", unknown: "未知" },
@@ -110,7 +108,7 @@ const zh: typeof en = {
     relation: { depends_on: "必需", continues: "延续", supersedes: "替代" },
     legend: "连线样式", open: "打开详情", noSource: "此事项的详情未加载到工作区。",
     select: "选择一项，查看它依赖什么、又会带来什么。", selected: "选中事项",
-    incomplete: "部分工作未出现在此地图中。", omitted: "未显示", missingEnds: "关联到其他 Goal 或已归档", truncated: "来源被裁剪", cycles: "循环关联",
+    incomplete: "部分工作未出现在此地图中。", omitted: "未显示", missingEnds: "关联事项未找到", truncated: "来源被裁剪", cycles: "循环关联",
   },
 };
 export const deliveryReviewCopy = { en, "zh-CN": zh };

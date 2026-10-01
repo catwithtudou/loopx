@@ -106,13 +106,13 @@ export function goalWorkMapLineage(edges: readonly GoalWorkMapEdge[], nodeId: st
 }
 
 /**
- * "partial" means this Goal's own work is not fully drawn. Links into archived
- * or other-Goal work are reported separately: the map scope excludes them.
+ * Missing endpoints do not identify why an item is absent. Keep the map partial
+ * until the owning projection can prove that a link is outside this Goal.
  */
-export function goalWorkMapCoverage(map: GoalWorkMap): "complete" | "outside_links" | "partial" {
+export function goalWorkMapCoverage(map: GoalWorkMap): "complete" | "partial" {
   const limits = map.limits;
   if (limits.omitted_node_count > 0 || limits.source_truncated || limits.cycle_edge_count > 0) return "partial";
-  if (limits.missing_endpoint_count > 0) return "outside_links";
+  if (limits.missing_endpoint_count > 0) return "partial";
   return limits.topology_complete ? "complete" : "partial";
 }
 

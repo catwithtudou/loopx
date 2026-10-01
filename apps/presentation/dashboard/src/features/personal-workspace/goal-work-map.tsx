@@ -192,7 +192,7 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
           {(["depends_on", "continues"] as const).map(relation => <span key={relation}><svg aria-hidden="true" width="28" height="8"><path d="M 1 4 L 27 4" data-relation={relation} /></svg>{copy.relation[relation]}</span>)}
         </span>
         {layout.hiddenCount ? <button type="button" className="work-map-hidden" onClick={() => setFocus("all")}>{layout.hiddenCount} {copy.hidden}</button> : null}
-        <p>{copy.boundary}{coverage === "outside_links" ? <> {copy.outsideLinks.replace("{count}", String(limits.missing_endpoint_count))}</> : null}</p>
+        <p>{copy.boundary}</p>
       </footer>
       {layout.unlinked.length ? <section className="work-map-unlinked" aria-label={copy.unlinked}>
         <h4>{copy.unlinked}</h4>
