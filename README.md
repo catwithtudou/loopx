@@ -16,6 +16,20 @@ The open, local-first control plane for long-horizon agents and personal agent t
 <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4"><img src="docs/assets/personal-workspace/workspace-hero.webp" alt="LoopX Personal Agent Workspace: an Agent team with executing and validating members, an owner decision that unblocks dependent work, and an accepted result with its evidence" width="960"></a><br>
 <sub>Packaged App on the reproducible <a href="demo/workspace/README.md">Workspace stories</a>; Agent turns and team records are simulated · <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">watch the 32-second walkthrough</a></sub>
 
+**Start in Codex App in two steps.** Install once:
+
+```bash
+python3 -m pip install --upgrade loopx && loopx workflow-skills --install
+```
+
+Restart Codex App, then type this in a thread opened on your project:
+
+```text
+$loopx fix the open PR review feedback and keep the patch reviewable
+```
+
+<sub>LoopX connects the project, plans the work as Todos and sets up the heartbeat that keeps it moving. Claude Code uses <code>/loopx &lt;task&gt;</code> · <a href="#start-from-your-agent">other Agent hosts</a></sub>
+
 **[LHTB](https://zli12321.github.io/LHTB/index.html) · 46 tasks · GPT-5.6 Sol:** LoopX 1.0.3 Heartbeat reaches **0.4948 mean reward** — **+17.3% vs Plain Codex**, **+10.6% vs native Codex Goal**.<br>
 <sub><a href="#lhtb-results">Results and pass rates ↓</a></sub>
 

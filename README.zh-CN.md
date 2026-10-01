@@ -16,6 +16,20 @@
 <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4"><img src="docs/assets/personal-workspace/workspace-hero.zh-CN.webp" alt="LoopX 个人 Agent 工作区：执行中与验收中的 Agent 团队成员、让后续工作继续的用户决策，以及附带证据的已验收成果" width="960"></a><br>
 <sub>打包 App 运行可复现的 <a href="demo/workspace/README.md">Workspace 示例场景</a>，Agent 对话与团队记录为模拟数据 · <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">观看 32 秒完整演示</a></sub>
 
+**两步在 Codex App 里用上 LoopX。** 先安装一次：
+
+```bash
+python3 -m pip install --upgrade loopx && loopx workflow-skills --install
+```
+
+重启 Codex App，在打开了你项目的对话里输入：
+
+```text
+$loopx 处理 PR 上未解决的 review 意见，保持补丁易于评审
+```
+
+<sub>LoopX 会连接项目、把工作规划成 Todo，并设置持续推进的 heartbeat。Claude Code 用 <code>/loopx &lt;任务&gt;</code> · <a href="#从你已经在用的-agent-启动">其他 Agent 宿主</a></sub>
+
 **[LHTB](https://zli12321.github.io/LHTB/index.html) · 46 个任务 · GPT-5.6 Sol：**LoopX 1.0.3 Heartbeat 平均 Reward 达到 **0.4948**，较 **Plain Codex 提升 17.3%**，较**原生 Codex Goal 提升 10.6%**。<br>
 <sub><a href="#lhtb-results">查看结果与通过率 ↓</a></sub>
 
