@@ -46,6 +46,7 @@ import { newestDraftScenario } from "./personal-workspace-browser/newest-draft.m
 
 import { conversationInputScenario } from "./personal-workspace-browser/conversation-input.mjs";
 import { goalActivityScenario } from "./personal-workspace-browser/goal-activity.mjs";
+import { goalWorkMapScenario } from "./personal-workspace-browser/goal-work-map.mjs";
 
 import { stewardGroupTriggerScenario } from "./personal-workspace-browser/steward-group-trigger.mjs";
 
@@ -60,6 +61,7 @@ const scenarioCatalog = [conversationStartupScenario,goalDraftScenario, capabili
 scenarioCatalog.push(confirmedOperationsScenario);
 scenarioCatalog.push(workspaceViewRecoveryScenario);
 scenarioCatalog.push(monitorReadbackScenario);
+scenarioCatalog.push(goalWorkMapScenario);
 const requestedScenario = process.env.LOOPX_PERSONAL_WORKSPACE_SCENARIO;
 const scenarios = requestedScenario
   ? scenarioCatalog.filter((scenario) => scenario.id === requestedScenario)
