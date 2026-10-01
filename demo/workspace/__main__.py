@@ -334,30 +334,21 @@ def advance(
     )
 
 
-def serve_isolated(root: Path, port: int) -> None:
-    # Isolate machine settings, host discovery and credentials from the user's home.
+def run_isolated(args: argparse.Namespace, root: Path) -> None:
+    # Prepare and replay must be isolated too: even read-only default discovery
+    # can consult personal registries before the server starts.
     home = root / "home"
-    manifest = prepare(root)
-    home.mkdir(exist_ok=True)
     env = {
         k: v
         for k, v in os.environ.items()
         if k in {"PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT"}
     }
     env.update(HOME=str(home), CODEX_HOME=str(home / ".codex"), PYTHONPATH=str(REPO))
-    print(
-        json.dumps(
-            {
-                "url": f"http://127.0.0.1:{port}/chat/",
-                "notice": manifest["notice"],
-            }
-        ),
-        flush=True,
-    )
     # Paths and ports are data, never arguments to an interpreter invocation.
     result = subprocess.run(
-        [sys.executable, "-m", "demo.workspace", "serve", "--_isolated"],
-        input=json.dumps({"root": str(root), "port": port}),
+        [sys.executable, "-m", "demo.workspace", args.command, "--_isolated"],
+        input=json.dumps({"root": str(root), "port": args.port,
+                          "story": args.story, "decision": args.decision}),
         text=True,
         cwd=REPO,
         env=env,
@@ -387,6 +378,8 @@ def main() -> None:
         config = json.load(sys.stdin)
         args.root = Path(config["root"])
         args.port = int(config["port"])
+        args.story = config.get("story")
+        args.decision = config.get("decision")
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
     root = (
@@ -395,9 +388,10 @@ def main() -> None:
     if root.is_symlink():
         parser.error("Demo root must not be a symlink")
     root = root.resolve()
-    if args.command == "serve" and not args._isolated:
-        serve_isolated(root, args.port)
+    if not args._isolated:
+        run_isolated(args, root)
     manifest = prepare(root)
+    (root / "home").mkdir(exist_ok=True)
     if args.command == "advance":
         if not args.story:
             parser.error("advance requires --story")
@@ -406,6 +400,8 @@ def main() -> None:
     if args.command == "prepare":
         print(json.dumps(manifest, ensure_ascii=False, indent=2))
         return
+    print(json.dumps({"url": f"http://127.0.0.1:{args.port}/chat/",
+                      "notice": manifest["notice"]}), flush=True)
     from loopx.chat_server import serve_chat
 
     serve_chat(
