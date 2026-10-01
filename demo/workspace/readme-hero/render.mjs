@@ -216,7 +216,7 @@ async function capture(browser, locale, story, dir) {
       element.dispatchEvent(new Event("scroll"));
     });
     await settle(page, 600);
-    const approval = page.getByRole("button", { name: zh ? "确认批准" : "Confirm approval", exact: true });
+    const approval = page.getByRole("button", { name: zh ? /确认批准/ : /Confirm approval/ });
     await approval.waitFor({ state: "visible" });
     assert.equal(await approval.count(), 1, "The captured conversation must contain one real pending approval");
     const approvalBox = await box(approval);
