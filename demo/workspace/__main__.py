@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 from loopx.bootstrap import bootstrap_project
 from loopx.configure_goal import configure_goal
@@ -23,13 +24,13 @@ MARKER = ".workspace-story-demo.json"
 REGISTRY_NAME = "registry.json"
 
 
-def checked(result: dict) -> dict:
+def checked(result: dict[str, Any]) -> dict[str, Any]:
     if not result.get("ok"):
         raise RuntimeError(json.dumps(result, ensure_ascii=False))
     return result
 
 
-def write_story_artifacts(project: Path, story: dict, notice: str) -> None:
+def write_story_artifacts(project: Path, story: dict[str, Any], notice: str) -> None:
     (project / "BRIEF.md").write_text(f"# {story['title']}\n\n{story['brief']}\n")
     with (project / "working-table.csv").open("w", newline="") as table:
         writer = csv.writer(table)
@@ -68,9 +69,10 @@ def write_story_artifacts(project: Path, story: dict, notice: str) -> None:
     )
 
 
-def seed_delivery_tasks(story: dict, registry: Path, runtime: Path) -> list:
+def seed_delivery_tasks(story: dict[str, Any], registry: Path, runtime: Path) -> list[dict[str, Any]]:
     """Record each story dependency as the typed relation its state allows."""
-    todos, ids = [], {}
+    todos: list[dict[str, Any]] = []
+    ids: dict[str, str] = {}
     by_key = {task["key"]: task for task in story["tasks"]}
     dependents: dict[str, list[str]] = {}
     for task in story["tasks"]:
@@ -132,7 +134,7 @@ def seed_delivery_tasks(story: dict, registry: Path, runtime: Path) -> list:
     return todos
 
 
-def seed_story(root: Path, story: dict, notice: str) -> dict:
+def seed_story(root: Path, story: dict[str, Any], notice: str) -> dict[str, Any]:
     runtime = root / "runtime"
     registry = root / REGISTRY_NAME
     project = root / "projects" / story["id"]
@@ -263,14 +265,14 @@ def seed_story(root: Path, story: dict, notice: str) -> dict:
     }
 
 
-def prepare(root: Path) -> dict:
+def prepare(root: Path) -> dict[str, Any]:
     root = root.expanduser()
     if root.is_symlink():
         raise ValueError("Demo root must not be a symlink")
     root = root.resolve()
     marker = root / MARKER
     if marker.exists():
-        manifest = json.loads(marker.read_text())
+        manifest: dict[str, Any] = json.loads(marker.read_text())
         if manifest.get("schema_version") != "workspace_story_demo_v3":
             raise ValueError("Unrecognized demo manifest")
         if manifest.get("root") != str(root) or manifest.get("registry") != str(
@@ -302,7 +304,7 @@ def prepare(root: Path) -> dict:
 
 
 def advance(
-    root: Path, manifest: dict, story_id: str, decision_key: str | None
+    root: Path, manifest: dict[str, Any], story_id: str, decision_key: str | None
 ) -> None:
     story = next(s for s in manifest["goals"] if s["id"] == story_id)
     registry = root / REGISTRY_NAME
