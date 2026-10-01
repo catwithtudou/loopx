@@ -288,7 +288,7 @@ python3 -m pip install --upgrade loopx && loopx workflow-skills --install
 | --- | --- |
 | Codex App、Codex CLI | `$loopx <复杂任务>` |
 | Claude Code | `/loopx <复杂任务>` |
-| DeepSeek Harness | 在技能选择器中选 `loopx`，然后直接描述任务 |
+| DeepSeek Harness | 安装 [DSH 原生 Plugin](packages/dsh-loopx-plugin/README.md)，在技能选择器中选 `loopx`，然后直接描述任务 |
 
 LoopX 会复用项目已有状态或连接项目，把工作规划成 Todo，并设置宿主的循环。
 `loopx status` 显示目标、等你处理的决策和下一条 Todo；`loopx doctor` 诊断安装。

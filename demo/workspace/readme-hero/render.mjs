@@ -2,7 +2,8 @@
 // server. Goals, Todos and owner decisions come from the real demo backend.
 // The demo starts no Agent, so the Codex conversation and the team delegation
 // records are simulated through route mocks; the README caption must say so.
-import { mkdirSync, writeFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -15,6 +16,7 @@ const { chromium } = createRequire(resolve(repo, "apps/presentation/dashboard/pa
 const { values: args } = parseArgs({
   options: {
     url: { type: "string", default: "http://127.0.0.1:8791" },
+    "demo-root": { type: "string" },
     out: { type: "string", default: resolve(repo, "output/playwright/readme-hero") },
   },
 });
@@ -22,6 +24,49 @@ const { values: args } = parseArgs({
 const goal = "community-day";
 const sessionId = `session-goal-${goal}-codex`;
 const turnId = "turn-venue-check";
+
+async function decisionState() {
+  const response = await fetch(new URL("/status.json", args.url));
+  assert.ok(response.ok, "The demo status must be readable");
+  const status = await response.json();
+  assert.ok(status.ok && status.todo_index?.schema_version === "todo_index_v0");
+  return status.todo_index.items.filter((item) => item.goal_id === goal)
+    .map(({ todo_id, role, task_class, status, done }) => ({ todo_id, role, task_class, status, done }))
+    .sort((a, b) => a.todo_id.localeCompare(b.todo_id));
+}
+
+// Preview only in the disposable workspace identified by the demo manifest.
+// Never resolve the gate or manufacture an approval card with a route mock.
+async function prepareDecision() {
+  assert.ok(args["demo-root"], "Pass --demo-root for a fresh Workspace stories directory");
+  const root = resolve(args["demo-root"]);
+  const manifest = JSON.parse(readFileSync(resolve(root, ".workspace-story-demo.json"), "utf8"));
+  assert.equal(manifest.schema_version, "workspace_story_demo_v2");
+  assert.equal(manifest.root, root);
+  const venue = manifest.goals.find((item) => item.id === goal)?.gates.venue;
+  assert.ok(venue?.todo_id, "The demo manifest must contain the venue decision");
+  const url = new URL(args.url);
+  assert.ok(url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname), "Use the isolated loopback demo server");
+  const before = await decisionState();
+  const gate = before.find((item) => item.todo_id === venue.todo_id);
+  assert.ok(gate?.role === "user" && gate.task_class === "user_gate" && gate.status === "open" && !gate.done, "Use a fresh demo with its venue decision still open");
+  const response = await fetch(new URL("/api/actions/preview", url), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action_kind: "gate.resolve",
+      summary: "Choose Riverside Hall: $5400 total, step-free access, 120 seats; hold expires Friday.",
+      normalized_parameters: { goal_id: goal, todo_id: venue.todo_id, agent_id: venue.agent, decision: "approve", note: "README illustration; approval stays pending." },
+      context: { kind: "goal", goal_id: goal },
+      idempotency_key: `readme-hero-venue-${venue.todo_id}`,
+    }),
+  });
+  const reply = await response.json();
+  assert.ok(response.ok && reply.ok, `Venue preview failed: ${reply.error ?? response.status}`);
+  assert.equal(reply.proposal.status, "preview_ready", "The packaged App must support pending venue approval; do not render from an older or already advanced demo");
+  assert.equal(reply.proposal.receipt, null);
+  assert.ok(reply.proposal.available_transitions.includes("apply"));
+  return before;
+}
 
 const locales = {
   "en-US": {
@@ -115,73 +160,81 @@ async function capture(browser, locale, story, dir) {
 
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale, serviceWorkers: "block" });
   const page = await context.newPage();
-  await page.route("**/api/chat/capabilities*", async (route) => {
-    const response = await route.fetch();
-    const json = await response.json();
-    json.adapters = json.adapters.map((adapter) => (adapter.agent_id === "codex" ? { ...adapter, available: true } : adapter));
-    await route.fulfill({ response, json });
-  });
-  await page.route("**/api/chat/sessions**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
-    if (path === "/api/chat/sessions" && request.method() === "GET") {
-      const goalId = url.searchParams.get("goal_id");
-      return route.fulfill({ json: { ok: true, schema_version: "loopx_chat_session_list_v1", sessions: !goalId || goalId === goal ? [session] : [] } });
-    }
-    if (path === "/api/chat/sessions" && request.method() === "POST") {
-      if (request.postDataJSON().goal_id !== goal) return route.continue();
-      return route.fulfill({ status: 201, json: { ok: true, agent_id: "codex", goal_id: goal, resumed: true, session_id: sessionId, session } });
-    }
-    if (path === `/api/chat/sessions/${sessionId}`) {
-      return route.fulfill({ json: { ok: true, schema_version: "loopx_chat_store_v1", session, messages, active_turn: { turn_id: turnId, status: "running", response: null } } });
-    }
-    if (path === `/api/chat/sessions/${sessionId}/turns/${turnId}/events`) {
-      return route.continue({ url: `http://127.0.0.1:${events.address().port}/events/${sessionId}/${turnId}` });
-    }
-    if (path === `/api/chat/sessions/${sessionId}/loopx`) {
-      if (request.method() === "GET") return route.fulfill({ json: mode });
-      const { operation } = request.postDataJSON();
-      if (operation === "operations") return route.fulfill({ json: { items: records, has_more: false, next_cursor: null, page_readback_complete: true } });
-      if (operation === "read") return route.fulfill({ json: { ...records[0], ok: true, request_id: "request-rota", artifacts: [{ ...rotaArtifact, text: story.rota }] } });
-      if (operation === "inspect") return route.fulfill({ json: { state: "launchable", turn_eligible: true, acceptance_ready: true, turn_route: "ready_for_host", executor: { host: "codex", available: true, reason: null, profile: null } } });
-      return route.fulfill({ json: mode });
-    }
-    return route.continue();
-  });
+  try {
+    await page.route("**/api/chat/capabilities*", async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      json.adapters = json.adapters.map((adapter) => (adapter.agent_id === "codex" ? { ...adapter, available: true } : adapter));
+      await route.fulfill({ response, json });
+    });
+    await page.route("**/api/chat/sessions**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const path = url.pathname;
+      if (path === "/api/chat/sessions" && request.method() === "GET") {
+        const goalId = url.searchParams.get("goal_id");
+        return route.fulfill({ json: { ok: true, schema_version: "loopx_chat_session_list_v1", sessions: !goalId || goalId === goal ? [session] : [] } });
+      }
+      if (path === "/api/chat/sessions" && request.method() === "POST") {
+        if (request.postDataJSON().goal_id !== goal) return route.continue();
+        return route.fulfill({ status: 201, json: { ok: true, agent_id: "codex", goal_id: goal, resumed: true, session_id: sessionId, session } });
+      }
+      if (path === `/api/chat/sessions/${sessionId}`) {
+        return route.fulfill({ json: { ok: true, schema_version: "loopx_chat_store_v1", session, messages, active_turn: { turn_id: turnId, status: "running", response: null } } });
+      }
+      if (path === `/api/chat/sessions/${sessionId}/turns/${turnId}/events`) {
+        return route.continue({ url: `http://127.0.0.1:${events.address().port}/events/${sessionId}/${turnId}` });
+      }
+      if (path === `/api/chat/sessions/${sessionId}/loopx`) {
+        if (request.method() === "GET") return route.fulfill({ json: mode });
+        const { operation } = request.postDataJSON();
+        if (operation === "operations") return route.fulfill({ json: { items: records, has_more: false, next_cursor: null, page_readback_complete: true } });
+        if (operation === "read") return route.fulfill({ json: { ...records[0], ok: true, request_id: "request-rota", artifacts: [{ ...rotaArtifact, text: story.rota }] } });
+        if (operation === "inspect") return route.fulfill({ json: { state: "launchable", turn_eligible: true, acceptance_ready: true, turn_route: "ready_for_host", executor: { host: "codex", available: true, reason: null, profile: null } } });
+        return route.fulfill({ json: mode });
+      }
+      return route.continue();
+    });
 
-  const zh = locale.startsWith("zh");
-  await page.goto(`${args.url}/chat/?goalId=${goal}&statusUrl=%2Fstatus.json&view=conversation`, { waitUntil: "load" });
-  await settle(page, 3500);
-  const dismiss = page.getByRole("button", { name: /Dismiss statistics notice|收起统计告知/ });
-  if (await dismiss.count()) await dismiss.click();
-  await settle(page, 800);
+    const zh = locale.startsWith("zh");
+    await page.goto(`${args.url}/chat/?goalId=${goal}&statusUrl=%2Fstatus.json&view=conversation`, { waitUntil: "load" });
+    await settle(page, 3500);
+    const dismiss = page.getByRole("button", { name: /Dismiss statistics notice|收起统计告知/ });
+    if (await dismiss.count()) await dismiss.click();
+    await settle(page, 800);
 
-  const results = await page.getByRole("heading", { name: zh ? "团队成果" : "Team results" }).evaluate((heading) => {
-    let element = heading;
-    while (element && element.getBoundingClientRect().height < 300) element = element.parentElement;
-    const r = element.getBoundingClientRect();
-    return { x: r.x, y: r.y };
-  });
-  await page.screenshot({ path: `${dir}/results.png`, clip: { x: results.x + 244, y: results.y + 140, width: 568, height: 378 } });
+    const results = await page.getByRole("heading", { name: zh ? "团队成果" : "Team results" }).evaluate((heading) => {
+      let element = heading;
+      while (element && element.getBoundingClientRect().height < 300) element = element.parentElement;
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y };
+    });
+    await page.screenshot({ path: `${dir}/results.png`, clip: { x: results.x + 244, y: results.y + 140, width: 568, height: 378 } });
 
-  await page.locator(".personal-channel-scroll").first().evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-    element.dispatchEvent(new Event("scroll"));
-  });
-  await settle(page, 600);
-  await page.screenshot({ path: `${dir}/conversation.png` });
+    await page.locator(".personal-channel-scroll").first().evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      element.dispatchEvent(new Event("scroll"));
+    });
+    await settle(page, 600);
+    const approval = page.getByRole("button", { name: zh ? "确认批准" : "Confirm approval", exact: true });
+    await approval.waitFor({ state: "visible" });
+    assert.equal(await approval.count(), 1, "The captured conversation must contain one real pending approval");
+    const approvalBox = await box(approval);
+    assert.ok(approvalBox.x >= 0 && approvalBox.y >= 0 && approvalBox.x + approvalBox.width <= 1440 && approvalBox.y + approvalBox.height <= 900, "The approval must be inside the captured viewport");
+    await page.screenshot({ path: `${dir}/conversation.png` });
 
-  await page.getByRole("button", { name: zh ? "团队执行情况" : /Team execution/ }).first().click();
-  await page.setViewportSize({ width: 470, height: 1300 });
-  await settle(page, 1500);
-  const cards = page.locator(".goal-team-bindings > li");
-  const [first, second] = [await box(cards.nth(0)), await box(cards.nth(1))];
-  await page.screenshot({ path: `${dir}/team.png`, clip: { x: first.x - 1, y: first.y - 1, width: first.width + 2, height: second.y + second.height - first.y + 2 } });
+    await page.getByRole("button", { name: zh ? "团队执行情况" : /Team execution/ }).first().click();
+    await page.setViewportSize({ width: 470, height: 1300 });
+    await settle(page, 1500);
+    const cards = page.locator(".goal-team-bindings > li");
+    const [first, second] = [await box(cards.nth(0)), await box(cards.nth(1))];
+    await page.screenshot({ path: `${dir}/team.png`, clip: { x: first.x - 1, y: first.y - 1, width: first.width + 2, height: second.y + second.height - first.y + 2 } });
 
-  await context.close();
-  for (const stream of streams) stream.destroy();
-  events.close();
+  } finally {
+    await context.close();
+    for (const stream of streams) stream.destroy();
+    await new Promise((closed) => events.close(closed));
+  }
 }
 
 async function compose(browser, locale, hero, dir, target) {
@@ -214,6 +267,8 @@ async function compose(browser, locale, hero, dir, target) {
   await page.close();
 }
 
+const before = await prepareDecision();
+mkdirSync(args.out, { recursive: true });
 const browser = await chromium.launch();
 try {
   for (const [locale, { file, story, hero }] of Object.entries(locales)) {
@@ -223,6 +278,7 @@ try {
     await compose(browser, locale, hero, dir, resolve(args.out, file));
     console.log(`${locale}: ${resolve(args.out, file)}`);
   }
+  assert.deepEqual(await decisionState(), before, "Rendering must leave the gate and dependent Todo states unchanged");
 } finally {
   await browser.close();
 }

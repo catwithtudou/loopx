@@ -324,7 +324,7 @@ Restart your Agent host, then start from a session opened on your project:
 | --- | --- |
 | Codex App, Codex CLI | `$loopx <complex task>` |
 | Claude Code | `/loopx <complex task>` |
-| DeepSeek Harness | Select the `loopx` skill, then describe the task |
+| DeepSeek Harness | Install the [native DSH plugin](packages/dsh-loopx-plugin/README.md), select the `loopx` skill, then describe the task |
 
 LoopX reuses existing project state or connects the project, plans the work as
 Todos and sets up the host's loop. `loopx status` shows the goal, any decision

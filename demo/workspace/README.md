@@ -48,12 +48,20 @@ This remains a source-checkout demo under `demo/`, outside the installed wheel a
 
 ## README hero
 
-The repository README hero is rendered from the packaged App on this demo. With the dashboard dependencies installed and a demo server running on port 8791:
+The repository README hero is rendered from the packaged App on this demo. With the dashboard dependencies installed, build the App and start a fresh isolated demo:
 
 ```bash
-node demo/workspace/readme-hero/render.mjs --url http://127.0.0.1:8791 --out docs/assets/personal-workspace
+uv run --extra test python scripts/chat_bundle.py build --install
+uv run --extra test python -m demo.workspace serve --root /tmp/workspace-hero --port 8791
 ```
 
-Goals, Todos and owner decisions are real demo state. Because the demo starts no Agent, the script simulates the Codex conversation and the team delegation records with browser route mocks, and the README caption says so. Intermediate frames always stay in ignored `output/playwright/readme-hero/frames/`.
+In another terminal:
+
+```bash
+node demo/workspace/readme-hero/render.mjs --url http://127.0.0.1:8791 \
+  --demo-root /tmp/workspace-hero --out docs/assets/personal-workspace
+```
+
+Goals, Todos and owner decisions are real demo state. The renderer prepares a pending venue approval through the existing typed action preview API, never applies it, and requires its confirmation button to be visible in both captured languages. It fails if the packaged App cannot review the decision or the demo has already advanced. Because the demo starts no Agent, the script simulates the Codex conversation and the team delegation records with browser route mocks, and the README caption says so. Intermediate frames always stay in ignored `output/playwright/readme-hero/frames/`.
 
 Validation: `python -m pytest tests/test_workspace_story_demo.py -q` exercises real state, directory isolation, repeatable prepare, computed artifacts and decision-scoped transitions. The normal Workspace browser smoke covers the shared Board/List and completed-history behavior, including #3961.
