@@ -204,6 +204,49 @@ def test_host_global_registry_selector_uses_one_host_route(
     assert resolve_cli_registry(args, argv) == (source / "registry.global.json", True)
 
 
+def test_repository_canary_does_not_select_goal_authority(tmp_path, monkeypatch):
+    source, target, _ = _fixture(tmp_path, projects=1)
+    _write_json(target / "registry.global.json", {"goals": []})
+    monkeypatch.setattr(paths, "LEGACY_RUNTIME_ROOT", source)
+    monkeypatch.setattr(paths, "DEFAULT_RUNTIME_ROOT", target)
+    monkeypatch.delenv("LOOPX_REGISTRY", raising=False)
+    registry = tmp_path / "missing-registry.json"
+    args = argparse.Namespace(command="canary", registry=str(registry), runtime_root=None)
+    assert resolve_cli_registry(args, ["canary", "quality-audit"]) == (registry, False)
+    args.goal_id = "goal-0"
+    with pytest.raises(SystemExit, match="Both default LoopX registries exist"):
+        resolve_cli_registry(args, ["canary", "premerge", "--goal-id", "goal-0"])
+    args.goal_id = None
+    args.registry = "@host-global"
+    with pytest.raises(SystemExit, match="Both default LoopX registries exist"):
+        resolve_cli_registry(args, ["--registry", "@host-global", "canary", "quality-audit"])
+
+
+def test_explicit_first_bootstrap_does_not_resolve_nonexistent_previous_authority(
+    tmp_path, monkeypatch, capsys,
+):
+    from loopx.cli import main
+
+    source, target, _ = _fixture(tmp_path, projects=1)
+    _write_json(target / "registry.global.json", {"goals": []})
+    monkeypatch.setattr(paths, "LEGACY_RUNTIME_ROOT", source)
+    monkeypatch.setattr(paths, "DEFAULT_RUNTIME_ROOT", target)
+    before = {p: p.read_bytes() for p in (
+        source / "registry.global.json", target / "registry.global.json",
+    )}
+    project = tmp_path / "fresh-project"
+    registry, runtime = project / ".loopx" / "registry.json", tmp_path / "explicit-runtime"
+    assert main([
+        "--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
+        "bootstrap", "--project", str(project), "--goal-id", "fresh-goal",
+        "--objective", "Create on the explicit isolated route",
+    ]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["ok"] is True
+    assert load_project_registry(registry)["common_runtime_root"] == str(runtime)
+    assert all(p.read_bytes() == content for p, content in before.items())
+
+
 def test_doctor_reads_legacy_capture_hosts_from_selected_runtime(
     tmp_path: Path,
 ) -> None:

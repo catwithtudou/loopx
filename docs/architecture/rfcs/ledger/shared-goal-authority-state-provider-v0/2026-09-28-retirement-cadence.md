@@ -440,7 +440,11 @@ uses its terminal receipt rather than reacquiring an open-work lease.
 Explicit registry/runtime commands also survive coexistence of both machine
 roots: projection discovery inspects both declarations without selecting an
 implicit authority, and still reports competing routes as ambiguous. Implicit
-CLI defaults retain their existing conflict rejection.
+Goal CLI defaults retain their existing conflict rejection. Repository canaries
+without a Goal receipt do not select machine authority; a first explicit
+bootstrap has no previous Goal authority to fence. Existing Goals still require
+their original-route replacement authorization. Local smoke fixtures declare
+their own runtime instead of inheriting operator state.
 
 The acceptance slice uses disposable File/SQLite providers, real CLI/Turn
 execution and a synthetic model process: crossing the initial expiry, canonical
