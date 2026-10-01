@@ -124,6 +124,14 @@ def test_review_is_cold_and_missing_observations_stay_unknown(workspace, monkeyp
     assert result["goal_map"]["schema_version"] == "goal_task_map_v0"
 
 
+def test_unreadable_todo_source_keeps_review_and_marks_map_unavailable(workspace):
+    server, registry, _ = workspace
+    (registry.parent / "ACTIVE_GOAL_STATE.md").unlink()
+    status, result = get(server)
+    assert status == 200
+    assert result["goal_map"] is None
+
+
 @pytest.mark.parametrize("query, expected", [("", 400), ("?goal_id=", 400), ("?goal_id=missing", 404),
     ("?goal_id=release-demo&goal_id=release-demo", 400), ("?goal_id=release-demo&view=workspace-directory", 400)])
 def test_review_rejects_ambiguous_or_absent_scope(workspace, query, expected):

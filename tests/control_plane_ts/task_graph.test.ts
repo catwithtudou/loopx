@@ -141,6 +141,24 @@ test("goal scope reports missing endpoints and cycles without inventing depth or
   assert.equal((goalGraph([row("todo_alpha")], {source_truncated: true}).completeness as JsonObject).topology_complete, false);
 });
 
+test("goal scope orders by dependencies and never reports opposing lineage as a cycle", () => {
+  // Work spawns the decision it waits for: lineage says the gate came from the
+  // work, the dependency says the work waits on the gate.
+  const result = goalGraph([
+    row("todo_work", {done: false, successor_todo_ids: ["todo_gate", "todo_after"]}),
+    row("todo_gate", {done: false, unblocks_todo_id: "todo_work"}),
+    row("todo_after", {done: false}),
+    row("todo_loop_a", {successor_todo_ids: ["todo_loop_b"]}), row("todo_loop_b", {successor_todo_ids: ["todo_loop_a"]})]);
+  const completeness = result.completeness as JsonObject;
+  assert.equal(completeness.cycle_edge_count, 0, "Lineage carries no order, so it cannot contradict one");
+  assert.equal(completeness.topology_complete, true);
+  assert.equal(depths(result).todo_gate, 0);
+  assert.equal(depths(result).todo_work, 1, "The dependency wins over opposing lineage");
+  assert.equal(depths(result).todo_after, 2, "Agreeing lineage still adds depth");
+  assert.equal(Math.abs((depths(result).todo_loop_a as number) - (depths(result).todo_loop_b as number)), 1);
+  assert.equal(pairs(result).length, 5, "Every recorded relation is still drawn");
+});
+
 test("goal scope rejects invalid wire input at the typed boundary", () => {
   assert.throws(() => goalGraph([row("todo_a"), row("todo_a")]), /Duplicate/);
   for (const node_limit of [0, 201, 1.5]) assert.throws(() => goalGraph([], {node_limit}));

@@ -166,26 +166,38 @@ export function projectGoalTaskGraphTopology(value: unknown): JsonObject {
   const missing = new Set([...edges.flatMap(edge => [edge.from_todo_id, edge.to_todo_id])]
     .filter(id => !byId.has(id)));
   const emitted = edges.filter(edge => admitted.has(edge.from_todo_id) && admitted.has(edge.to_todo_id));
-  const outgoing = new Map<string, GraphEdge[]>();
-  for (const edge of emitted) outgoing.set(edge.from_todo_id, [...outgoing.get(edge.from_todo_id) ?? [], edge]);
-  const depth = new Map<string, number>();
-  const visiting = new Set<string>();
+  const order = rows.map(item => item.todo_id).filter(id => admitted.has(id));
+  // Dependencies order the map. Lineage carries no ordering obligation, so it
+  // only adds depth where it agrees with that order; a follow-up recorded in
+  // the opposite direction of a dependency is not a cycle.
+  const ordering = new Map<string, string[]>();
+  const link = (edge: GraphEdge) => ordering.set(edge.from_todo_id, [...ordering.get(edge.from_todo_id) ?? [], edge.to_todo_id]);
+  const reaches = (from: string, to: string) => {
+    const seen = new Set([from]);
+    const queue = [from];
+    while (queue.length) {
+      const current = queue.shift()!;
+      if (current === to) return true;
+      for (const next of ordering.get(current) ?? []) if (!seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+    return false;
+  };
   const cycleEdges = new Set<string>();
+  for (const edge of emitted.filter(edge => edge.relation === "depends_on")) {
+    if (reaches(edge.to_todo_id, edge.from_todo_id)) cycleEdges.add(edgeKey(edge));
+    else link(edge);
+  }
+  for (const edge of emitted.filter(edge => edge.relation !== "depends_on")) {
+    if (!reaches(edge.to_todo_id, edge.from_todo_id)) link(edge);
+  }
+  const depth = new Map<string, number>();
   const visit = (id: string): number => {
     const known = depth.get(id);
     if (known !== undefined) return known;
-    visiting.add(id);
-    let result = 0;
-    for (const edge of outgoing.get(id) ?? []) {
-      // A back edge would make depth unbounded; it stays in `edges` for display.
-      if (visiting.has(edge.to_todo_id)) { cycleEdges.add(edgeKey(edge)); continue; }
-      result = Math.max(result, visit(edge.to_todo_id) + 1);
-    }
-    visiting.delete(id);
+    const result = Math.max(0, ...(ordering.get(id) ?? []).map(next => visit(next) + 1));
     depth.set(id, result);
     return result;
   };
-  const order = rows.map(item => item.todo_id).filter(id => admitted.has(id));
   for (const id of order) visit(id);
   const omitted = rows.length - order.length;
   return {
@@ -196,7 +208,7 @@ export function projectGoalTaskGraphTopology(value: unknown): JsonObject {
       node_limit: limit, emitted_node_count: order.length, omitted_node_count: omitted,
       source_truncated: sourceTruncated, missing_endpoint_count: missing.size,
       cycle_edge_count: cycleEdges.size,
-      topology_complete: !sourceTruncated && omitted === 0 && missing.size === 0,
+      topology_complete: !sourceTruncated && omitted === 0 && missing.size === 0 && cycleEdges.size === 0,
     },
   };
 }

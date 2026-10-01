@@ -37,13 +37,17 @@ from .status_server import parse_goal_activation_filter
 from .todos import list_goal_todos
 
 
-def _goal_task_map(server: Any, goal_id: str) -> dict[str, Any]:
+def _goal_task_map(server: Any, goal_id: str) -> dict[str, Any] | None:
     runtime_root = server.runtime_root_override
-    listed = list_goal_todos(
-        registry_path=server.registry_path,
-        goal_id=goal_id,
-        runtime_root_arg=str(runtime_root) if runtime_root else None,
-    )
+    try:
+        listed = list_goal_todos(
+            registry_path=server.registry_path,
+            goal_id=goal_id,
+            runtime_root_arg=str(runtime_root) if runtime_root else None,
+        )
+    except (OSError, ValueError):
+        # An unreadable Todo source leaves the rest of the review usable.
+        return None
     todos = [row for row in listed.get("todos") or [] if isinstance(row, dict)]
     return build_goal_task_map(
         goal_id=goal_id,

@@ -217,18 +217,26 @@ added to status hot paths.
   `depth` (the longest recorded prerequisite path). Admission is deterministic:
   unfinished work first, then direct completed prerequisites of unfinished
   work, then remaining history, up to `node_limit` (at most 200).
-- `topology_complete` is true only when nothing was omitted, the source list
-  was not truncated, no relation names an absent Todo, and no cycle exists.
-  Cycle back edges are counted, not drawn as an order. Missing endpoints never
-  create phantom nodes.
+- `depends_on` edges order the map. Lineage (`continues`, `supersedes`)
+  carries no ordering obligation: it adds depth only where it agrees with the
+  dependency order. A follow-up recorded opposite to a dependency, such as a
+  gate spawned by the work it later unblocks, is drawn but is not a cycle.
+- `cycle_edge_count` counts dependency loops only; their back edges are
+  counted, not drawn as an order. `topology_complete` is true only when nothing
+  was omitted, the source list was not truncated, no relation names an absent
+  Todo, and no dependency loop exists. Missing endpoints never create phantom
+  nodes.
+- An unreadable Todo source returns `goal_map: null` and leaves the rest of the
+  delivery review available.
 
 Like the predecessor lens, the map has no write authority. A drawn line is a
 recorded relation, not a readiness verdict; the resume evaluator and lifecycle
 commands keep that authority.
 
 中文：工作地图只读展示一个 Goal 的全部未归档 Todo 和已记录的类型化关系；
-连线来自记录而非推断，不代表“可以执行”。截断、缺失端点和环都必须显式计入
-`limits`，不能把不完整的图画成完整顺序。
+连线来自记录而非推断，不代表“可以执行”。顺序只由依赖决定，延续/替代仅在不与依赖
+冲突时加深层级，因此反向记录的后续不算成环；`cycle_edge_count` 只统计依赖环。截断、
+缺失端点和依赖环都必须显式计入 `limits`，不能把不完整的图画成完整顺序。
 
 ## Write Boundary
 
