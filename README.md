@@ -13,6 +13,9 @@ The open, local-first control plane for long-horizon agents and personal agent t
 
 [Get started](#try-loopx) · [Workspace](#meet-the-personal-agent-workspace) · [LHTB results](#lhtb-results) · [Docs](https://loopx-project.github.io/loopx/docs/) · [简体中文](README.zh-CN.md)
 
+<a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4"><img src="docs/assets/personal-workspace/workspace-hero.webp" alt="LoopX Personal Agent Workspace: an Agent team with executing and validating members, an owner decision that unblocks dependent work, and an accepted result with its evidence" width="960"></a><br>
+<sub>Packaged App on the reproducible <a href="demo/workspace/README.md">Workspace stories</a>; Agent turns and team records are simulated · <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">watch the 32-second walkthrough</a></sub>
+
 **[LHTB](https://zli12321.github.io/LHTB/index.html) · 46 tasks · GPT-5.6 Sol:** LoopX 1.0.3 Heartbeat reaches **0.4948 mean reward** — **+17.3% vs Plain Codex**, **+10.6% vs native Codex Goal**.<br>
 <sub><a href="#lhtb-results">Results and pass rates ↓</a></sub>
 
@@ -39,10 +42,6 @@ Keep long-horizon goals in one local-first workspace. Goals, attention,
 conversations, tasks, files, schedules, and recovery stay durable across days,
 restarts, and harnesses. Reopen a project, inspect the previous turn’s state
 and evidence, and continue the next permitted action.
-
-<a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">
-  <img src="docs/assets/personal-workspace/workspace-1.0.webp" alt="LoopX Workspace: owner decisions, Agent tasks, scheduled watches and completed work" width="960">
-</a>
 
 LoopX 1.0 brings these long-horizon control states into the Personal Workspace. It gives you one place to:
 

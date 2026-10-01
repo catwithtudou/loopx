@@ -13,6 +13,9 @@
 
 [开始使用](#试用-loopx) · [个人工作区](#认识个人-agent-工作区) · [LHTB 结果](#lhtb-results) · [文档](https://loopx-project.github.io/loopx/docs/) · [English](README.md)
 
+<a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4"><img src="docs/assets/personal-workspace/workspace-hero.zh-CN.webp" alt="LoopX 个人 Agent 工作区：执行中与验收中的 Agent 团队成员、让后续工作继续的用户决策，以及附带证据的已验收成果" width="960"></a><br>
+<sub>打包 App 运行可复现的 <a href="demo/workspace/README.md">Workspace 示例场景</a>，Agent 对话与团队记录为模拟数据 · <a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">观看 32 秒完整演示</a></sub>
+
 **[LHTB](https://zli12321.github.io/LHTB/index.html) · 46 个任务 · GPT-5.6 Sol：**LoopX 1.0.3 Heartbeat 平均 Reward 达到 **0.4948**，较 **Plain Codex 提升 17.3%**，较**原生 Codex Goal 提升 10.6%**。<br>
 <sub><a href="#lhtb-results">查看结果与通过率 ↓</a></sub>
 
@@ -37,10 +40,6 @@ LoopX 管理下一步工作、验收依据，以及什么时候需要你判断�
 把长程目标收进同一个 local-first 工作区。Goal、待关注事项、对话、任务、
 文件、定时计划与恢复状态跨天数、跨重启、跨 harness 保持持久。重新打开项目时，
 可以检查上一轮的状态与证据，再继续下一项允许执行的工作。
-
-<a href="docs/assets/personal-workspace/loopx-dashboard-launch.mp4">
-  <img src="docs/assets/personal-workspace/workspace-1.0.webp" alt="LoopX 工作区：用户决策、Agent 任务、持续监控与完成记录" width="960">
-</a>
 
 LoopX 1.0 将这些长程控制状态汇入 Personal Workspace。你可以在一个页面中：
 
