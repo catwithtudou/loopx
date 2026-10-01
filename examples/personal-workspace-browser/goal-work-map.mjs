@@ -58,7 +58,7 @@ export const goalWorkMapScenario = {
     assert.equal(await canvas.locator("path[marker-end]").count(), 3, "Two relations between one pair draw one line; none are invented");
     assert.deepEqual(await titles(map.getByRole("region", { name: "未与其他工作关联" })), ["Check registration totals"]);
     assert.match(await map.locator(".work-map-summary").innerText(), /2\/5\s+项任务已完成.*1 需你决策.*2 受阻.*1 持续监控/s);
-    await map.getByRole("button", { name: "1 项早期已完成工作已隐藏" }).click();
+    await map.getByRole("button", { name: "1 项已完成或延后的工作已隐藏" }).click();
     assert.equal(await canvas.locator(".work-map-node").count(), 6);
     assert.equal(await canvas.locator("path[marker-end]").count(), 4);
     await map.getByRole("button", { name: "当前工作", exact: true }).click();

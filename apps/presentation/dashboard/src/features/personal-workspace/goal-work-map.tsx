@@ -1,28 +1,29 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Circle, CircleCheck, CircleDashed, ExternalLink, Eye, Hand, OctagonAlert, ZoomIn, ZoomOut } from "lucide-react";
-import { goalWorkMapLayout, goalWorkMapLineage, goalWorkMapIncomplete, goalWorkMapSummary, goalWorkMapTone,
+import { goalWorkMapCoverage, goalWorkMapLayout, goalWorkMapLineage, goalWorkMapSharedOwner, goalWorkMapSummary, goalWorkMapTone,
   type GoalWorkMap, type GoalWorkMapEdge, type GoalWorkMapFocus, type GoalWorkMapNode, type GoalWorkMapTone } from "../../data/goal-work-map";
 import type { deliveryReviewCopy } from "./delivery-review-copy";
 import "./goal-work-map.css";
 
 type Copy = (typeof deliveryReviewCopy)["en"]["workMap"];
-const CARD_W = 176, CARD_H = 88, COLUMN = 212, ROW = 102, PAD = 20;
+const CARD_W = 176, CARD_H = 88, COLUMN = 212, ROW = 102, PAD = 20, GAP_X = 44, GAP_Y = 36, UNLINKED_PREVIEW = 8;
 const relationRank: Record<GoalWorkMapEdge["relation"], number> = { depends_on: 0, supersedes: 1, continues: 2 };
 const toneIcon: Record<GoalWorkMapTone, typeof Circle> = {
   decision: Hand, blocked: OctagonAlert, open: Circle, waiting: CircleDashed, done: CircleCheck, unknown: Circle,
 };
 
-function NodeCard({ node, copy, selected, dimmed, style, onSelect }: {
-  node: GoalWorkMapNode; copy: Copy; selected: boolean; dimmed: boolean; style?: CSSProperties; onSelect: (id: string) => void;
+function NodeCard({ node, copy, selected, dimmed, style, sharedOwner, doneBefore = 0, onSelect }: {
+  node: GoalWorkMapNode; copy: Copy; selected: boolean; dimmed: boolean; style?: CSSProperties; sharedOwner: string | null; doneBefore?: number; onSelect: (id: string) => void;
 }) {
   const tone = goalWorkMapTone(node);
   const Icon = node.kind === "monitor" && tone !== "done" ? Eye : toneIcon[tone];
-  const owner = node.owner_agent;
+  const owner = node.owner_agent === sharedOwner ? undefined : node.owner_agent;
+  const footer = Boolean(owner || node.task_domain || doneBefore);
   return <button type="button" className="work-map-node" data-tone={tone} data-kind={node.kind} data-dimmed={dimmed || undefined}
-    aria-pressed={selected} style={style} title={node.title} onClick={() => onSelect(node.node_id)}>
+    data-bare={footer ? undefined : true} aria-pressed={selected} style={style} title={node.title} onClick={() => onSelect(node.node_id)}>
     <span className="work-map-node-meta"><Icon aria-hidden="true" size={13} />{copy.kind[node.kind]}<em>{copy.tone[tone]}</em></span>
     <strong>{node.title}</strong>
-    <small>{owner ? <><i aria-hidden="true">{owner.slice(0, 1).toUpperCase()}</i>{owner}</> : null}{node.task_domain ? <span>{node.task_domain}</span> : null}</small>
+    {footer ? <small>{owner ? <><i aria-hidden="true">{owner.slice(0, 1).toUpperCase()}</i>{owner}</> : null}{node.task_domain ? <span>{node.task_domain}</span> : null}{doneBefore ? <span className="work-map-done-before">{copy.doneBefore.replace("{count}", String(doneBefore))}</span> : null}</small> : null}
   </button>;
 }
 
@@ -32,6 +33,7 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
 }) {
   const marker = useId().replace(/:/g, "");
   const [focus, setFocus] = useState<GoalWorkMapFocus>("current");
+  const [allUnlinked, setAllUnlinked] = useState(false);
   const [scale, setScale] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
@@ -45,10 +47,29 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
   }, []);
   const layout = useMemo(() => goalWorkMapLayout(map, focus), [map, focus]);
   const summary = goalWorkMapSummary(map);
+  const sharedOwner = goalWorkMapSharedOwner(map);
+  const coverage = goalWorkMapCoverage(map);
+  const unlinked = allUnlinked ? layout.unlinked : layout.unlinked.slice(0, UNLINKED_PREVIEW);
   const nodeById = new Map(map.nodes.map(node => [node.node_id, node]));
-  const position = new Map(layout.columns.flatMap((column, x) => column.map((node, y) => [node.node_id, { x: PAD + x * COLUMN, y: PAD + y * ROW }] as const)));
-  const width = PAD * 2 + Math.max(0, layout.columns.length * COLUMN - (COLUMN - CARD_W));
-  const height = PAD * 2 + Math.max(1, ...layout.columns.map(column => column.length)) * ROW - (ROW - CARD_H);
+  const placedNodes = layout.groups.flatMap(group => group.columns.flat());
+  // Shelf-pack chains left to right within the visible width, most urgent first.
+  const { position, frames, width, height } = useMemo(() => {
+    const limit = available ? available - PAD * 2 : 1040;
+    const position = new Map<string, { x: number; y: number }>();
+    const frames: { x: number; y: number; w: number; h: number }[] = [];
+    let x = 0, y = 0, shelf = 0, right = 0;
+    for (const group of layout.groups) {
+      const w = group.columns.length * COLUMN - (COLUMN - CARD_W);
+      const h = Math.max(...group.columns.map(column => column.length)) * ROW - (ROW - CARD_H);
+      if (x > 0 && x + w > limit) { y += shelf + GAP_Y; x = 0; shelf = 0; }
+      group.columns.forEach((column, c) => column.forEach((node, r) => position.set(node.node_id, { x: PAD + x + c * COLUMN, y: PAD + y + r * ROW })));
+      frames.push({ x: PAD + x - 10, y: PAD + y - 10, w: w + 20, h: h + 20 });
+      right = Math.max(right, x + w);
+      x += w + GAP_X;
+      shelf = Math.max(shelf, h);
+    }
+    return { position, frames, width: PAD * 2 + right, height: PAD * 2 + y + shelf };
+  }, [layout, available]);
   const fit = available ? Math.min(1, available / width) : 1;
   // Fit when the whole map stays legible; otherwise keep full size and scroll.
   const zoom = scale ?? (fit >= 0.86 ? fit : 1);
@@ -102,6 +123,7 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
           {summary.blocked ? <span data-tone="blocked">{summary.blocked} {copy.blocked}</span> : null}
           {summary.waiting ? <span>{summary.waiting} {copy.waiting}</span> : null}
           {summary.watches ? <span>{summary.watches} {copy.watches}</span> : null}
+          {sharedOwner ? <span className="work-map-owner">{copy.owner} {sharedOwner}</span> : null}
         </p>
       </div>
       <div className="work-map-controls">
@@ -115,23 +137,24 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
         </div>
       </div>
     </header>
-    {goalWorkMapIncomplete(map) ? <details className="work-map-notice"><summary>{copy.incomplete}</summary><dl>
+    {coverage === "partial" ? <details className="work-map-notice"><summary>{copy.incomplete}</summary><dl>
       <div><dt>{copy.omitted}</dt><dd>{limits.omitted_node_count}</dd></div>
       <div><dt>{copy.missingEnds}</dt><dd>{limits.missing_endpoint_count}</dd></div>
       <div><dt>{copy.truncated}</dt><dd>{limits.source_truncated ? "✓" : "–"}</dd></div>
       <div><dt>{copy.cycles}</dt><dd>{limits.cycle_edge_count}</dd></div>
     </dl></details> : null}
     {!map.nodes.length ? <p className="work-map-empty" role="status">{copy.empty}</p> : <>
-      {compact ? <ol className="work-map-list">{layout.columns.flat().map(node => {
+      {compact ? <ol className="work-map-list">{placedNodes.map(node => {
         const needs = layout.edges.filter(edge => edge.from_node_id === node.node_id).map(edge => nodeById.get(edge.to_node_id)!.title);
-        return <li key={node.node_id}><NodeCard node={node} copy={copy} selected={node.node_id === selectedId} dimmed={false} onSelect={onSelect} />
+        return <li key={node.node_id}><NodeCard node={node} copy={copy} selected={node.node_id === selectedId} dimmed={false} sharedOwner={sharedOwner} doneBefore={layout.collapsed.get(node.node_id)} onSelect={onSelect} />
           {needs.length ? <p><span>{copy.before}</span> {[...new Set(needs)].join(" · ")}</p> : null}</li>;
       })}</ol> : null}
       <div className="work-map-scroll" hidden={compact} ref={scrollRef} role="region" aria-label={copy.canvas} tabIndex={0}
         onPointerDown={startPan} onPointerMove={pan} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
-        {layout.columns.length ? <div className="work-map-stage" style={{ width: width * zoom, height: height * zoom }}>
+        {placedNodes.length ? <div className="work-map-stage" style={{ width: width * zoom, height: height * zoom }}>
           <div className="work-map-canvas" style={{ width, height, transform: `scale(${zoom})` }}>
             <svg aria-hidden="true" width={width} height={height}>
+              {frames.length > 1 ? frames.map(frame => <rect key={`${frame.x}:${frame.y}`} className="work-map-group" x={frame.x} y={frame.y} width={frame.w} height={frame.h} rx={14} />) : null}
               <defs>{["base", "hot"].map(kind => <marker key={kind} id={`${marker}-${kind}`} className={`work-map-arrow is-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 1 L 9 5 L 0 9 z" /></marker>)}</defs>
               {strokes.map(group => {
                 const edge = group[0];
@@ -145,10 +168,10 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
                   data-dimmed={(selected && !related) || undefined} markerEnd={`url(#${marker}-${related ? "hot" : "base"})`} />;
               })}
             </svg>
-            {layout.columns.flat().map(node => <NodeCard key={node.node_id} node={node} copy={copy} selected={node.node_id === selectedId}
-              dimmed={Boolean(selected) && !lineage.nodes.has(node.node_id)} style={{ left: position.get(node.node_id)!.x, top: position.get(node.node_id)!.y }} onSelect={onSelect} />)}
+            {placedNodes.map(node => <NodeCard key={node.node_id} node={node} copy={copy} selected={node.node_id === selectedId}
+              dimmed={Boolean(selected) && !lineage.nodes.has(node.node_id)} style={{ left: position.get(node.node_id)!.x, top: position.get(node.node_id)!.y }} sharedOwner={sharedOwner} doneBefore={layout.collapsed.get(node.node_id)} onSelect={onSelect} />)}
           </div>
-        </div> : null}
+        </div> : <p className="work-map-empty">{copy.noLinks}</p>}
       </div>
       <section className="work-map-inspector" ref={inspectorRef} aria-label={copy.selected}>
         {!selected ? <p>{copy.select}</p> : <>
@@ -169,11 +192,13 @@ export function GoalWorkMapView({ map, copy, selectedId, onSelect, onOpen, canOp
           {(["depends_on", "continues"] as const).map(relation => <span key={relation}><svg aria-hidden="true" width="28" height="8"><path d="M 1 4 L 27 4" data-relation={relation} /></svg>{copy.relation[relation]}</span>)}
         </span>
         {layout.hiddenCount ? <button type="button" className="work-map-hidden" onClick={() => setFocus("all")}>{layout.hiddenCount} {copy.hidden}</button> : null}
-        <p>{copy.boundary}</p>
+        <p>{copy.boundary}{coverage === "outside_links" ? <> {copy.outsideLinks.replace("{count}", String(limits.missing_endpoint_count))}</> : null}</p>
       </footer>
       {layout.unlinked.length ? <section className="work-map-unlinked" aria-label={copy.unlinked}>
         <h4>{copy.unlinked}</h4>
-        <div>{layout.unlinked.map(node => <NodeCard key={node.node_id} node={node} copy={copy} selected={node.node_id === selectedId} dimmed={false} onSelect={onSelect} />)}</div>
+        <div>{unlinked.map(node => <NodeCard key={node.node_id} node={node} copy={copy} selected={node.node_id === selectedId} dimmed={false} sharedOwner={sharedOwner} doneBefore={layout.collapsed.get(node.node_id)} onSelect={onSelect} />)}</div>
+        {layout.unlinked.length > UNLINKED_PREVIEW ? <button type="button" className="work-map-hidden" aria-expanded={allUnlinked} onClick={() => setAllUnlinked(value => !value)}>
+          {allUnlinked ? copy.showFewer : copy.showMore.replace("{count}", String(layout.unlinked.length - UNLINKED_PREVIEW))}</button> : null}
       </section> : null}
     </>}
   </section>;

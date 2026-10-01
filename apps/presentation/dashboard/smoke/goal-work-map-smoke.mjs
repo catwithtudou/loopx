@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { deliveryReviewMarkdown, parseDeliveryReview } from "../node_modules/.cache/delivery-review/data/delivery-review.js";
-import { goalWorkMapIncomplete, goalWorkMapLayout, goalWorkMapLineage, goalWorkMapSummary, goalWorkMapTone } from "../node_modules/.cache/delivery-review/data/goal-work-map.js";
+import { goalWorkMapCoverage, goalWorkMapLayout, goalWorkMapLineage, goalWorkMapSharedOwner, goalWorkMapSummary, goalWorkMapTone } from "../node_modules/.cache/delivery-review/data/goal-work-map.js";
 import { deliveryReviewCopy } from "../node_modules/.cache/delivery-review/features/personal-workspace/delivery-review-copy.js";
 
 const node = (id, kind, state, depth) => ({ node_id: id, kind, title: `Title ${id}`, state, depth, refs: { todo_ids: [`todo_${id}`] } });
@@ -20,22 +20,27 @@ const map = {
 const snapshot = { ok: true, goal_id: "map-demo", observed_at: "2026-09-01T00:00:00Z", graph: null, goal_map: map, acceptance: null };
 const parsed = parseDeliveryReview(snapshot, "map-demo").goal_map;
 const ids = nodes => nodes.map(item => item.node_id);
+const grids = layout => layout.groups.map(group => group.columns.map(ids));
 
 assert.deepEqual(goalWorkMapSummary(parsed), { work: 5, done: 2, blocked: 2, waiting: 0, decisions: 1, watches: 1 });
 assert.equal(goalWorkMapTone(node("x", "gate", "done", 0)), "done", "A decided gate no longer asks for a decision");
 assert.equal(goalWorkMapTone(node("x", "deliverable", "ready", 0)), "open");
 
 const current = goalWorkMapLayout(parsed, "current");
-assert.deepEqual(current.columns.map(ids), [["gate"], ["reserve", "venues"], ["deposit", "budget"]], "Rows follow placed prerequisites");
+assert.deepEqual(grids(current), [[["gate"], ["reserve"], ["deposit"]], [["venues"], ["budget"]]],
+  "Each chain gets its own grid, the one needing a decision first, with hidden depths compacted");
 assert.equal(current.hiddenCount, 1, "Older history beyond direct prerequisites is hidden, not dropped");
 assert.deepEqual(ids(current.unlinked), ["watch"]);
 assert.equal(current.edges.length, 4, "Parallel relations between one pair survive layout");
 const all = goalWorkMapLayout(parsed, "all");
-assert.deepEqual(all.columns.map(ids), [["gate", "scope"], ["reserve", "venues"], ["deposit", "budget"]], "Decisions lead finished work at equal depth");
+assert.deepEqual(grids(all), [[["gate"], ["reserve"], ["deposit"]], [["scope"], ["venues"], ["budget"]]]);
 assert.equal(all.hiddenCount, 0);
 const gap = goalWorkMapLayout({ ...parsed, nodes: [node("a", "deliverable", "done", 0), node("b", "deliverable", "done", 1), node("c", "deliverable", "open", 2)],
   edges: [edge("b", "a"), edge("c", "b")] }, "current");
-assert.deepEqual(gap.columns.map(ids), [["b"], ["c"]], "Hidden depths leave no empty columns");
+assert.deepEqual(grids(gap), [[["b"], ["c"]]], "Hidden depths leave no empty columns");
+const joined = goalWorkMapLayout({ ...parsed, nodes: [node("p", "deliverable", "open", 0), node("q", "deliverable", "open", 0), node("r", "deliverable", "open", 1)],
+  edges: [edge("r", "p"), edge("r", "q")] }, "all");
+assert.deepEqual(grids(joined), [[["p", "q"], ["r"]]], "A shared dependent keeps its prerequisites in one chain");
 
 const lineage = goalWorkMapLineage(parsed.edges, "reserve");
 assert.deepEqual([...lineage.nodes].sort(), ["deposit", "gate", "reserve"], "Lineage follows only recorded links");
@@ -43,9 +48,35 @@ assert.equal(lineage.edges.size, 2);
 assert.equal(goalWorkMapLineage(parsed.edges, "budget").edges.size, 3, "Transitive prerequisites are traced");
 assert.equal(goalWorkMapLineage(parsed.edges, null).nodes.size, 0);
 
-assert.equal(goalWorkMapIncomplete(parsed), false);
-assert.equal(goalWorkMapIncomplete({ ...parsed, limits: { ...parsed.limits, topology_complete: false } }), true);
-assert.equal(goalWorkMapIncomplete({ ...parsed, limits: { ...parsed.limits, cycle_edge_count: 1 } }), true, "A cycle is never drawn as a complete order");
+// Deferred work leaves the current view unless active work needs it or an open decision unblocks it.
+const parked = goalWorkMapLayout({ ...parsed, nodes: [node("ask", "gate", "open", 0), node("later", "deliverable", "waiting", 1),
+  node("run", "deliverable", "open", 1), node("input", "deliverable", "waiting", 0), node("shelf", "deliverable", "waiting", 0)],
+  edges: [edge("later", "ask", "depends_on", "typed_condition"), edge("run", "input", "depends_on", "typed_condition")] }, "current");
+assert.deepEqual(new Set(parked.groups.flatMap(group => group.columns.flat()).map(item => item.node_id)), new Set(["ask", "later", "run", "input"]));
+assert.equal(parked.hiddenCount, 1, "Unrelated deferred work is hidden, not dropped");
+
+// A long finished history behind one step collapses into a count instead of a column.
+const history = (count) => goalWorkMapLayout({ ...parsed, nodes: [node("step", "deliverable", "open", 1), node("next", "deliverable", "open", 2),
+  ...Array.from({ length: count }, (_, index) => node(`done${index}`, "deliverable", "done", 0))],
+  edges: [edge("next", "step", "depends_on", "typed_condition"), ...Array.from({ length: count }, (_, index) => edge("step", `done${index}`))] }, "current");
+assert.deepEqual(grids(history(2)), [[["done0", "done1"], ["step"], ["next"]]], "Two finished prerequisites stay as context");
+assert.deepEqual(grids(history(3)), [[["step"], ["next"]]]);
+assert.equal(history(3).collapsed.get("step"), 3);
+assert.equal(history(3).hiddenCount, 3, "Collapsed history is counted, not dropped");
+assert.equal(goalWorkMapLayout({ ...parsed, nodes: history(3).groups[0].columns.flat() }, "all").collapsed.size, 0, "The full map collapses nothing");
+
+const limits = parsed.limits;
+assert.equal(goalWorkMapCoverage(parsed), "complete");
+assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, missing_endpoint_count: 2, topology_complete: false } }), "outside_links",
+  "Links into archived or other-Goal work do not make this Goal's own map partial");
+for (const change of [{ omitted_node_count: 1 }, { source_truncated: true }, { cycle_edge_count: 1 }]) {
+  assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, missing_endpoint_count: 2, topology_complete: false, ...change } }), "partial");
+}
+assert.equal(goalWorkMapCoverage({ ...parsed, limits: { ...limits, topology_complete: false } }), "partial", "Unexplained incompleteness stays partial");
+const owned = (...owners) => ({ ...parsed, nodes: owners.map((owner, index) => ({ ...node(`n${index}`, "deliverable", "open", 0), ...(owner ? { owner_agent: owner } : {}) })) });
+assert.equal(goalWorkMapSharedOwner(owned("solo", "solo", null)), "solo");
+assert.equal(goalWorkMapSharedOwner(owned("solo", "pair")), null);
+assert.equal(goalWorkMapSharedOwner(owned("solo")), null, "A single owned item keeps its owner on the card");
 
 for (const mutation of [
   { ...map, goal_id: "other-goal" },
