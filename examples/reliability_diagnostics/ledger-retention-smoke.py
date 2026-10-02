@@ -105,7 +105,8 @@ def main() -> int:
             base = root / case
             runtime = base / "runtime"
             goal = "goal:alias" if case == "collision" else FIXTURE_GOAL_ID
-            case_ref = ledger_ref(goal)
+            case_ref = ("reliability_diagnostics/goal_alias.ndjson"
+                        if case == "collision" else ledger_ref(goal))
             ledger = runtime / case_ref
             ledger.parent.mkdir(parents=True)
             seed = json.loads(json.dumps(fixture["ledger_records"]))
@@ -122,7 +123,8 @@ def main() -> int:
                 rows = json.loads(json.dumps(fixture["ledger_records"]))
                 foreign_id = "foreign-goal" if case != "collision" else "goal_alias"
                 if case == "collision":
-                    assert ledger_ref(foreign_id) == case_ref
+                    assert ledger_ref(foreign_id) != ledger_ref(goal)
+                    assert foreign_id == goal.replace(":", "_")
                 for row in rows:
                     row["goal_id"] = foreign_id
                 if case == "foreign":
@@ -139,7 +141,7 @@ def main() -> int:
                 ledger.symlink_to(backing)
             sentinel = runtime / "authority-sibling.json"
             sentinel.write_bytes(b'{"synthetic":"unchanged"}\n')
-            case_env = shell_env(base, runtime, ledger.parent, goal)
+            case_env = shell_env(base, runtime, runtime / "reliability_diagnostics", goal)
             bindir = base / "bin"
             if case == "copy-tamper":
                 executable(bindir / "cp", f"#!{sys.executable}\nimport pathlib,subprocess,sys\n"
