@@ -99,7 +99,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="loopx-retention-smoke-") as tmp:
         root = Path(tmp)
-        cases = ("degraded", "invalid", "symlink", "foreign", "mixed", "malformed",
+        cases = ("degraded", "invalid", "symlink", "namespace-symlink", "foreign", "mixed", "malformed",
                  "collision", "copy-tamper", "source-tamper", "restore-tamper", "occupied")
         for case in cases:
             base = root / case
@@ -139,6 +139,10 @@ def main() -> int:
             if case == "symlink":
                 ledger.rename(backing)
                 ledger.symlink_to(backing)
+            elif case == "namespace-symlink":
+                backing = base / "outside-ledgers"
+                ledger.parent.rename(backing)
+                ledger.parent.symlink_to(backing, target_is_directory=True)
             sentinel = runtime / "authority-sibling.json"
             sentinel.write_bytes(b'{"synthetic":"unchanged"}\n')
             case_env = shell_env(base, runtime, runtime / "reliability_diagnostics", goal)
@@ -181,6 +185,10 @@ def main() -> int:
                 if case == "symlink":
                     assert ledger.is_symlink() and backing.read_bytes() == content
                     assert not any(p.exists() for p in exports)
+                elif case == "namespace-symlink":
+                    assert "symlink ledger namespace" in result.stderr
+                    assert (backing / ledger.name).read_bytes() == content
+                    assert ledger.parent.is_symlink() and not archives
                 elif case in {"foreign", "mixed", "malformed", "collision"}:
                     assert ledger.read_bytes() == content and not any(p.exists() for p in exports)
                 elif case == "source-tamper":

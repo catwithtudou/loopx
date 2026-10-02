@@ -100,6 +100,8 @@ if provider.resolve() != expected.resolve():
     raise SystemExit("unsupported provider ledger directory: canonical runtime layout required")
 if provider.is_symlink():
     raise SystemExit("symlink ledger directory: hold offline operations")
+if (provider / "by-goal").is_symlink():
+    raise SystemExit("symlink ledger namespace: hold offline operations")
 PY
 umask 077
 diagnostic_archive=$(mktemp -d "${TMPDIR:-/tmp}/loopx-diagnostics.XXXXXX")
@@ -187,7 +189,7 @@ python examples/reliability_diagnostics/ledger-retention-smoke.py --installed
 The smoke executes this literal shell block with the selected interpreter's
 real CLI against disposable state. It restores degraded and refused-control
 input ledgers with identical bytes and receipt/projection, including invalid
-missing-ledger readback after deletion. Symlinks, foreign/mixed ownership,
+missing-ledger readback after deletion. Provider, namespace and file symlinks, foreign/mixed ownership,
 malformed input and legacy filename collisions stop before ledger export;
 source/copy tampering and occupied restore destinations are rejected. Synthetic
 sibling state stays unchanged. The existing DSH producer's real resolver and
@@ -260,7 +262,7 @@ public-safe 聚合。保留全部失败标记，不筛选“成功”行。
    冻结 provider 配置中记录的真实目录填入 `diagnostic_provider_ledger_dir`，记录同一安装版本。
    本 v0 只支持 canonical 布局：该目录须与 `<runtime-root>/reliability_diagnostics` 对应。
    任意 custom directory 的 parent 无法建立映射，因为 CLI 会固定添加 `reliability_diagnostics`；
-   preflight 会在 CLI 读回和导出前拒绝不匹配或 symlink directory。保留原件供另行授权的恢复
+   preflight 会在 CLI 读回和导出前拒绝不匹配、provider 或 `by-goal` symlink directory。保留原件供另行授权的恢复
    路径使用，不要移动、重新 ingest 或删除文件来绕过此 hold，也不能依赖当前 shell 的 env、
    当前项目或默认路径猜测实际目录。
 3. 新文件使用精确 Goal id 的 UTF-8 SHA-256 小写摘要，放在独立的 `by-goal` 子目录；
