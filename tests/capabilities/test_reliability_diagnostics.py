@@ -622,6 +622,52 @@ def test_diagnostics_equal_instants_keep_session_then_sequence_order() -> None:
     ]
 
 
+@pytest.mark.parametrize("earlier,later", [
+    ("2026-09-01T10:00:00.0000001Z", "2026-09-01T10:00:00.0000009Z"),
+    ("20260901T100000,0000001Z", "2026-09-01T12:00:00.0000009+02:00"),
+    ("2026-09-01T10:00:00+00:00:01.0000009", "2026-09-01T10:00:00+00:00:01.0000001"),
+    ("2026-09-01T10:00:00-00:00:01.0000001", "2026-09-01T10:00:00-00:00:01.0000009"),
+    ("2026-09-01T10:00:00+00:00:00.5", "2026-09-01T09:59:59.6Z"),
+    ("2026-09-01T09:59:59.4Z", "2026-09-01T10:00:00+00:00:00.5"),
+])
+def test_diagnostics_preserves_accepted_fractional_precision(earlier: str, later: str) -> None:
+    reading = read_ledger([
+        envelope(0, ObserverEventKind.AGENT_ERROR, observed_at=later),
+        envelope(1, ObserverEventKind.TURN_ENDED, observed_at=earlier),
+        stats(accepted_event_count=2),
+    ], goal_id=GOAL)
+    assert reading.invalid_record_count == 0
+    assert [item.sequence for item in reading.ordered_envelopes] == [1, 0]
+    receipt = build_integrity_receipt(reading)
+    assert (receipt["observed_from"], receipt["observed_until"]) == (earlier, later)
+    projection = build_diagnostic_projection(reading)
+    assert projection["stage"] == "errored"
+    assert projection["recovery"]["unrecovered_error_count"] == 1
+    assert projection["recovery"]["recovered_error_count"] == 0
+
+
+@pytest.mark.parametrize("first,last,elapsed_ms", [
+    ("2026-09-01T10:00:00.0000009Z", "2026-09-01T10:00:00.0010001Z", 0),
+    ("2026-09-01T10:00:00+00:00:00.5", "2026-09-01T10:00:00Z", 500),
+    ("2026-09-01T10:00:00Z", "2026-09-01T10:00:00-00:00:00.5", 500),
+    ("0001-01-01T00:00:00Z", "9999-12-31T23:59:59.999999Z", 315_537_897_599_999),
+])
+def test_diagnostic_age_and_gap_use_the_same_instant_precision(
+    first: str, last: str, elapsed_ms: int,
+) -> None:
+    projection = projection_for(
+        envelope(0, ObserverEventKind.STEP_STARTED, observed_at=first),
+        stats(), as_of=last, stall_threshold_ms=1,
+    )
+    assert projection["stall"]["last_event_age_ms"] == elapsed_ms
+    assert projection["stall"]["detected"] is (elapsed_ms >= 1)
+    interval = projection_for(
+        envelope(0, observed_at=first), envelope(1, observed_at=last),
+        stats(accepted_event_count=2),
+    )
+    assert interval["stall"]["max_inter_event_gap_ms"] == elapsed_ms
+
+
 def test_cli_diagnostics_replays_mixed_offsets_without_mutating_ledger(tmp_path: Path) -> None:
     first, recovered, last = (
         "2026-09-01T12:00:00+02:00", "2026-09-01T10:01:00Z", "2026-09-01T10:02:00Z",

@@ -22,7 +22,7 @@ from .envelope import (
     ObserverEnvelope,
     ObserverEnvelopeError,
     normalize_observer_envelope,
-    parse_observed_at,
+    observed_at_microseconds,
 )
 from .intake import ObserverStats, normalize_observer_stats
 
@@ -91,7 +91,7 @@ class LedgerReading:
     def ordered_envelopes(self) -> list[ObserverEnvelope]:
         return sorted(
             self.envelopes,
-            key=lambda item: (parse_observed_at(item.observed_at), item.session_id, item.sequence),
+            key=lambda item: (observed_at_microseconds(item.observed_at), item.session_id, item.sequence),
         )
 
 
